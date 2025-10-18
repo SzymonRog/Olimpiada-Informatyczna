@@ -1,148 +1,152 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
-#include <string>
 #include <fstream>
 using namespace std;
 
-struct Move {
-    int from;
-    int to;
-};
-
-bool allOnOneStack(const vector<vector<int>>& stacks, int n) {
-    for (const auto& stack : stacks) {
-        if (!stack.empty() && stack[0] == n)
-            return true;
-    }
-    return false;
-}
-
 int main() {
-    ifstream fin("han/in/han0e.in");
-    if (!fin.is_open()) {
-        cerr << "Nie można otworzyć pliku!" << endl;
-        return 1;
-    }
+
+    ios_base::sync_with_stdio(false);
+    cin.tie(nullptr);
 
     int n, m;
-    fin >> n >> m;
+    cin >> n >> m;
 
     vector<vector<int>> stacks(m);
+    vector<int> stack_size(m);
+
     for (int i = 0; i < m; i++) {
         int k;
-        fin >> k;
-        stacks[i].push_back(k);
+        cin >> k;
+        stack_size[i] = k;
+        stacks[i].resize(k);
         for (int j = 0; j < k; j++) {
-            int block;
-            fin >> block;
-            stacks[i].push_back(block);
+            cin >> stacks[i][j];
         }
     }
-    fin.close();
+
+    // Sprawdź czy każdy klocek na osobnym stosie
+    bool one_per_stack = (n == m);
+    if (one_per_stack) {
+        for (int i = 0; i < m; i++) {
+            if (stack_size[i] != 1) {
+                one_per_stack = false;
+                break;
+            }
+        }
+    }
+
+    if (one_per_stack) {
+        // Stwórz mapę: klocek -> stos
+        vector<int> block_to_stack(n + 1);
+        for (int i = 0; i < m; i++) {
+            block_to_stack[stacks[i][0]] = i;
+        }
+
+        int target_stack = block_to_stack[1];
+
+        cout << n - 1 << endl;
+        for (int block = 0; block < n; block++) {
+            cout << block_to_stack[block] + 2 << " " << target_stack + 1<< endl;
+        }
+        return 0;
+    }
 
     vector<int> ile_moves(n + 1, 0);
-    vector<Move> moves;
-    int iterations = 0;
+    vector<pair<int, int>> moves;
+    moves.reserve(n);
+
+    vector<int> gdzie(n + 1);
+    vector<int> bottoms(m);
+
     const int MAX_ITERATIONS = n * 10;
 
-    while (!allOnOneStack(stacks, n) && iterations < MAX_ITERATIONS) {
-        iterations++;
-
-        vector<int> gdzie(n + 1, 0);
-        vector<int> tops(m, 0);
-        vector<int> bottoms(m, 0);
-
-        // Pozycje klocków
+    for (int iterations = 0; iterations < MAX_ITERATIONS; iterations++) {
+        // Sprawdź czy wszystkie klocki na jednym stosie
+        bool done = false;
         for (int i = 0; i < m; i++) {
-            vector<int>& stack = stacks[i];
-            if (stack.size() < 2) continue;
-            for (int j = 1; j < (int)stack.size(); j++) {
-                gdzie[stack[j]] = i;
+            if (stack_size[i] == n) {
+                done = true;
+                break;
             }
         }
+        if (done) break;
 
-        // top/bottom każdego stosu
+        // Pozycje klocków i bottomy
         for (int i = 0; i < m; i++) {
-            vector<int>& stack = stacks[i];
-            if (stack.size() <= 1 || stack[0] == 0) {
-                tops[i] = 0;
-                bottoms[i] = 0;
+            int sz = stack_size[i];
+            if (sz > 0) {
+                bottoms[i] = stacks[i][sz - 1];
+                for (int j = 0; j < sz; j++) {
+                    gdzie[stacks[i][j]] = i;
+                }
             } else {
-                bottoms[i] = stack.back();
-                tops[i] = stack[1];
+                bottoms[i] = 0;
             }
         }
 
-        // wybór klocka z najmniejszą liczbą ruchów
-        int min_moves = 1e9;
-        int block = -1;
-        for (int j = 1; j <= n; j++) {
-            if (ile_moves[j] < min_moves) {
-                min_moves = ile_moves[j];
-                block = j;
-            } else if (ile_moves[j] == min_moves && j < block) {
+        // Wybór klocka z najmniejszą liczbą ruchów
+        int block = 1;
+        int min_mv = ile_moves[1];
+        for (int j = 2; j <= n; j++) {
+            if (ile_moves[j] < min_mv) {
+                min_mv = ile_moves[j];
                 block = j;
             }
         }
 
-        // wybór docelowego stosu
-        int witch_stack = 0;
+        // Wybór docelowego stosu
+        int witch_stack = -1;
         int gap = -100000;
         for (int i = 0; i < m; i++) {
             int ngap = bottoms[i] - block;
-            if (ngap < 0) {
-                if (ngap > gap) {
-                    gap = ngap;
-                    witch_stack = i + 1;
-                }
+            if (ngap < 0 && ngap > gap) {
+                gap = ngap;
+                witch_stack = i;
             }
+        }
+
+        if (witch_stack == -1) {
+            cout << -1 << endl;
+            return 0;
         }
 
         ile_moves[block]++;
 
-
-
-        if (witch_stack == 0) {
-            cout << "-1 Brak Rozwiązań" << endl;
-            return 0;
-        }
-
-
         int from_stack_idx = gdzie[block];
-        int to_stack_idx = witch_stack - 1;
 
-        stacks[from_stack_idx][0]--;
-        stacks[to_stack_idx][0]++;
-
-        auto& from_stack = stacks[from_stack_idx];
-        int block_pos = -1;
-        for (int i = 0; i < from_stack.size(); i++) {
-            if (from_stack[i] == block) {
-                block_pos = i;
+        // Usuń klocek ze stosu źródłowego - OPTYMALIZACJA: swap zamiast erase
+        int from_sz = stack_size[from_stack_idx];
+        for (int i = 0; i < from_sz; i++) {
+            if (stacks[from_stack_idx][i] == block) {
+                // Zamień z ostatnim i zmniejsz rozmiar
+                stacks[from_stack_idx][i] = stacks[from_stack_idx][from_sz - 1];
+                stack_size[from_stack_idx]--;
                 break;
             }
         }
 
-        if (block_pos != -1) {
-            from_stack.erase(from_stack.begin() + block_pos);
+        // Dodaj do stosu docelowego
+        int to_sz = stack_size[witch_stack];
+        if (to_sz >= stacks[witch_stack].size()) {
+            stacks[witch_stack].push_back(block);
+        } else {
+            stacks[witch_stack][to_sz] = block;
         }
+        stack_size[witch_stack]++;
 
-        stacks[to_stack_idx].push_back(block);
-        moves.push_back({from_stack_idx + 1, to_stack_idx + 1});
+        moves.emplace_back(from_stack_idx + 1, witch_stack + 1);
     }
 
-    if (iterations >= MAX_ITERATIONS) {
-        cout << "-1 Przekroczono limit iteracji" << endl;
+    if (moves.size() >= MAX_ITERATIONS) {
+        cout << -1 << endl;
         return 0;
     }
 
     cout << moves.size() << endl;
-    for (const auto& move : moves) {
-        cout << move.from << " " << move.to << endl;
+    for (const auto& [from, to] : moves) {
+        cout << from << " " << to << endl;
     }
-
-
 
     return 0;
 }
