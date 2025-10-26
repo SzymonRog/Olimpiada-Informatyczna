@@ -1,27 +1,20 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
-
-    long long n, m;
-    cin >> n >> m;
-
+string check(long long n, long long m) {
     string seq;
-    long long g = gcd(n, m);
+    long long g = gcd(m,n);
 
     if (n == 1) {
         seq = "P";
-        return 0;
+        return seq;
     }
     if (m == 1) {
         seq = "D";
-        return 0;
+        return seq;
     }
 
     if (g == 1) {
-
         seq = "DP";
     }
     else {
@@ -38,7 +31,17 @@ int main() {
             }
         }
     }
+    return seq;
+}
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
 
+    long long n, m;
+    cin >> n >> m;
+
+    string seq;
+    seq = check(n,m);
     cout << seq.size() << endl;
     cout << seq << endl;
 
